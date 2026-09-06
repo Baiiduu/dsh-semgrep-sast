@@ -8,12 +8,6 @@ importers:
 
   .: {}
 
-  packages/agent:
-    dependencies:
-      '@aaub-software/dsh-semgrep-sast':
-        specifier: workspace:0.1.0
-        version: link:../bundle
-
   packages/bundle:
     dependencies:
       '@deepseek-ai/schemastery':

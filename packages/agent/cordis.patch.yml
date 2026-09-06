@@ -1,9 +1,0 @@
-# Register the presets shipped by this npm package without changing the
-# deployment's default Agent. The bundle patch is evaluated from the profile
-# root, so resolve the package manifest through Node before locating presets/.
-- id: agent-presets
-  config:
-    default: standard
-    roots:
-      - path: !!js "process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@aaub-software/dsh-ssc-agent/package.json')), 'presets')"
-        trust: system

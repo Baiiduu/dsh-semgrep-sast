@@ -1,3 +1,0 @@
-name: SSC 模式
-description: 面向软件供应链安全分析的 Agent，结合规则引擎扫描、模型结果审阅与模型自主静态分析。
-order: 10
