@@ -1,0 +1,31 @@
+# JavaScript dependencies and package-manager state
+node_modules/
+.pnpm-store/
+
+# TypeScript build output
+lib/
+*.tsbuildinfo
+
+# Generated Windows runtime payload
+packages/runtimes/*/runtime/**
+
+# Test and coverage output
+coverage/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+
+# Local environment and log files
+.env
+.env.*
+!.env.example
+*.log
+
+# Packed npm artifacts
+*.tgz
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

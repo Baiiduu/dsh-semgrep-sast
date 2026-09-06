@@ -1,0 +1,17 @@
+{
+  "name": "@aaub-software/dsh-semgrep-sast-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Development workspace for the DeepSeek Harness Semgrep SAST bundle and its managed runtimes.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "pnpm --recursive run build",
+    "typecheck": "pnpm --recursive run typecheck",
+    "test": "pnpm --recursive run test"
+  }
+}

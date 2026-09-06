@@ -1,0 +1,33 @@
+{
+  "name": "@aaub-software/semgrep-runtime-win32-x64",
+  "version": "0.1.0",
+  "description": "Managed Semgrep runtime for DeepSeek Harness on Windows x64.",
+  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "assemble": "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/assemble-runtime.ps1"
+  },
+  "exports": {
+    "./runtime-manifest.json": "./runtime-manifest.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "runtime-manifest.json",
+    "runtime/**",
+    "requirements.lock",
+    "scripts/**",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses/**"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,8 @@
+- insert:
+    - id: semgrep-sast
+      name: '@aaub-software/dsh-semgrep-sast'
+      config:
+        runtimeMode: bundled
+        defaultRuleset: p/default
+        timeoutMs: 300000
+        maxFindings: 200
