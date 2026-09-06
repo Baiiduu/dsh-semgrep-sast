@@ -28,6 +28,13 @@ function Get-VerifiedDownload(
   [string] $Destination,
   [string] $ExpectedSha256
 ) {
+  if (Test-Path -LiteralPath $Destination -PathType Leaf) {
+    $cachedSha256 = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($cachedSha256 -eq $ExpectedSha256) {
+      return
+    }
+    Remove-Item -LiteralPath $Destination
+  }
   Invoke-WebRequest -Uri $Uri -OutFile $Destination -UseBasicParsing
   $actualSha256 = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actualSha256 -ne $ExpectedSha256) {
@@ -59,14 +66,18 @@ if (-not (Test-Path -LiteralPath $RequirementsLock -PathType Leaf)) {
 
 $ScratchRoot = Get-NormalizedPath $ScratchDirectory
 $BuildDirectory = Join-Path $ScratchRoot ("dsh-semgrep-runtime-" + [guid]::NewGuid().ToString('N'))
+$DownloadDirectory = Join-Path $ScratchRoot 'downloads'
+$PipCacheDirectory = Join-Path $ScratchRoot 'pip-cache'
 $StagedRuntime = Join-Path $BuildDirectory 'runtime'
 $PythonDirectory = Join-Path $StagedRuntime 'python'
 $SitePackages = Join-Path $PythonDirectory 'Lib\site-packages'
-$PythonArchive = Join-Path $BuildDirectory "python-$PythonVersion-embed-amd64.zip"
-$PipWheel = Join-Path $BuildDirectory "pip-$PipVersion-py3-none-any.whl"
+$PythonArchive = Join-Path $DownloadDirectory "python-$PythonVersion-embed-amd64.zip"
+$PipWheel = Join-Path $DownloadDirectory "pip-$PipVersion-py3-none-any.whl"
 
 New-Item -ItemType Directory -Path $PythonDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $SitePackages -Force | Out-Null
+New-Item -ItemType Directory -Path $DownloadDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $PipCacheDirectory -Force | Out-Null
 
 try {
   Get-VerifiedDownload $PythonUrl $PythonArchive $PythonSha256
@@ -86,7 +97,7 @@ try {
   $PythonExecutable = Join-Path $PythonDirectory 'python.exe'
   & $PythonExecutable -m pip install `
     --disable-pip-version-check `
-    --no-cache-dir `
+    --cache-dir $PipCacheDirectory `
     --no-compile `
     --only-binary=:all: `
     --require-hashes `
@@ -96,9 +107,25 @@ try {
     throw "pip failed with exit code $LASTEXITCODE"
   }
 
-  $InstalledVersion = (& $PythonExecutable -m semgrep --version).Trim()
-  if ($LASTEXITCODE -ne 0 -or $InstalledVersion -ne $SemgrepVersion) {
-    throw "Expected Semgrep $SemgrepVersion, received $InstalledVersion"
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  try {
+    # Windows PowerShell surfaces native stderr as ErrorRecord objects.
+    $ErrorActionPreference = 'Continue'
+    $VersionOutput = @(
+      & $PythonExecutable -c 'from semgrep.console_scripts.pysemgrep import main; main()' --version 2>&1
+    )
+    $VersionExitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  $InstalledVersion = $VersionOutput |
+    ForEach-Object { $_.ToString().Trim() } |
+    Where-Object { $_ -match '^\d+\.\d+\.\d+$' } |
+    Select-Object -Last 1
+  if ($VersionExitCode -ne 0 -or $InstalledVersion -ne $SemgrepVersion) {
+    $RenderedVersionOutput = $VersionOutput -join [Environment]::NewLine
+    throw "Expected Semgrep $SemgrepVersion, received output: $RenderedVersionOutput"
   }
 
   if (Test-Path -LiteralPath $RuntimeDirectory) {

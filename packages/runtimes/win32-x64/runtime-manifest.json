@@ -6,8 +6,8 @@
   "launcher": {
     "executable": "runtime/python/python.exe",
     "arguments": [
-      "-m",
-      "semgrep"
+      "-c",
+      "from semgrep.console_scripts.pysemgrep import main; main()"
     ]
   },
   "environment": {

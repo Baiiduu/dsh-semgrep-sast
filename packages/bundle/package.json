@@ -39,7 +39,7 @@
     "@deepseek-ai/schemastery": "^3.18.2"
   },
   "optionalDependencies": {
-    "@aaub-software/semgrep-runtime-win32-x64": "0.1.0"
+    "@aaub-software/semgrep-runtime-win32-x64": "workspace:0.1.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
