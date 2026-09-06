@@ -2,11 +2,23 @@ import { realpath, stat } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type {} from '@deepseek-ai/dsh-user-approval'
+import {
+  approveEscalation,
+  escalationHintMarker,
+  sandboxDenialMarker,
+  validateEscalationArgs,
+} from '@deepseek-ai/dsh-sandbox'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { DEFAULT_RULESET, type ResolvedConfig } from './config.js'
 import type { ResolvedRuntime } from './runtime.js'
 import { runSemgrep } from './semgrep.js'
-import type { SemgrepDiagnostic, SemgrepFinding, SemgrepScanResult } from './types.js'
+import type {
+  SemgrepDiagnostic,
+  SemgrepFinding,
+  SemgrepScanInput,
+  SemgrepScanResult,
+} from './types.js'
 
 const SEVERITY_ORDER: Readonly<Record<SemgrepFinding['severity'], number>> = {
   error: 0,
@@ -123,7 +135,10 @@ export function createSemgrepScanTool(
   return defineTool({
     name: 'semgrep_scan',
     description: 'Run a read-only Semgrep SAST scan over workspace-relative files or directories. '
-      + 'Returns exact finding locations and reports partial coverage separately from result truncation.',
+      + 'Returns exact finding locations and reports partial coverage separately from result truncation. '
+      + 'On Windows, Semgrep Core cannot open the system certificate store under the Harness ACL sandbox. '
+      + 'Call normally first; after the reported denial, retry the exact scan once with '
+      + 'sandbox_permissions="danger-full-access" and a one-sentence justification so Harness can ask the user for approval.',
     parameters: {
       paths: {
         type: 'array',
@@ -135,6 +150,16 @@ export function createSemgrepScanTool(
         enum: [DEFAULT_RULESET],
         default: DEFAULT_RULESET,
         description: 'Semgrep Registry ruleset to use. The first release supports p/default.',
+      },
+      sandbox_permissions: {
+        type: 'string',
+        enum: ['workspace-write', 'danger-full-access'],
+        description: 'One-shot retry after a sandbox denial. Windows scans require danger-full-access because '
+          + 'Semgrep Core is incompatible with the Harness ACL sandbox; requires justification and user approval.',
+      },
+      justification: {
+        type: 'string',
+        description: 'Required with sandbox_permissions: one sentence explaining why this scan needs wider process access.',
       },
     },
     output: {
@@ -164,7 +189,7 @@ export function createSemgrepScanTool(
       },
       render: (_args, result) => [{ type: 'text', text: renderResult(result) }],
     },
-    async execute(args, exec) {
+    async execute(args: SemgrepScanInput, exec) {
       const workspaceRoot = exec.agent?.session.header.cwd
       if (workspaceRoot === undefined) {
         throw new Error('semgrep_scan: the calling session does not define a workspace')
@@ -174,6 +199,46 @@ export function createSemgrepScanTool(
       }
       if (args.ruleset !== undefined && args.ruleset !== config.defaultRuleset) {
         throw new Error(`semgrep_scan: ruleset ${JSON.stringify(args.ruleset)} is not available`)
+      }
+      validateEscalationArgs(args.sandbox_permissions, args.justification)
+
+      const standingPolicy = ctx.sandboxPolicy.resolve(
+        exec.agent === undefined ? {} : { session: exec.agent.session },
+      )
+      const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
+        ? await approveEscalation(
+            {
+              requestedMode: args.sandbox_permissions,
+              justification: args.justification,
+              effectiveMode: standingPolicy.mode,
+              subject: 'scan',
+            },
+            {
+              approver: ctx.get('approval'),
+              agent: exec.agent,
+              callId: exec.callId,
+              toolName: 'semgrep_scan',
+              signal: exec.signal,
+            },
+          )
+        : undefined
+      const sandboxPolicy = approvedMode === undefined
+        ? standingPolicy
+        : { ...standingPolicy, mode: approvedMode }
+      if (process.platform === 'win32' && sandboxPolicy.mode !== 'danger-full-access') {
+        throw new Error(
+          'semgrep-sast: Semgrep Core cannot access the Windows certificate store under the Harness ACL sandbox; '
+          + 'this scan requires explicit danger-full-access approval\n'
+          + `${sandboxDenialMarker(sandboxPolicy.mode)}\n`
+          + escalationHintMarker('scan'),
+        )
+      }
+      if (sandboxPolicy.mode === 'read-only') {
+        throw new Error(
+          'semgrep-sast: Semgrep requires a writable private temporary directory\n'
+          + `${sandboxDenialMarker(sandboxPolicy.mode)}\n`
+          + escalationHintMarker('scan'),
+        )
       }
 
       const targets = await resolveTargets(workspaceRoot, args.paths ?? ['.'])
@@ -185,9 +250,7 @@ export function createSemgrepScanTool(
         configSpecifier,
         timeoutMs: config.timeoutMs,
         signal: exec.signal,
-        sandboxPolicy: ctx.sandboxPolicy.resolve(
-          exec.agent === undefined ? {} : { session: exec.agent.session },
-        ),
+        sandboxPolicy,
       })
       const findings = [...scan.findings].sort(compareFindings).slice(0, config.maxFindings)
       const result: SemgrepScanResult = {

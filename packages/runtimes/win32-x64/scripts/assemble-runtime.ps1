@@ -112,7 +112,7 @@ try {
     # Windows PowerShell surfaces native stderr as ErrorRecord objects.
     $ErrorActionPreference = 'Continue'
     $VersionOutput = @(
-      & $PythonExecutable -c 'from semgrep.console_scripts.pysemgrep import main; main()' --version 2>&1
+      & $PythonExecutable -c "import os,tempfile; p=tempfile.gettempdir(); os.environ.update({'XDG_CACHE_HOME':p,'XDG_CONFIG_HOME':p,'SEMGREP_SETTINGS_FILE':os.path.join(p,'semgrep-settings.yml'),'SEMGREP_LOG_FILE':os.path.join(p,'semgrep.log'),'SEMGREP_VERSION_CACHE_PATH':os.path.join(p,'semgrep-version')}); from semgrep.console_scripts.pysemgrep import main; main()" --version 2>&1
     )
     $VersionExitCode = $LASTEXITCODE
   }

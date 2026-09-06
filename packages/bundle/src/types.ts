@@ -7,6 +7,10 @@ export interface SemgrepScanInput {
   paths?: string[]
   /** Semgrep Registry ruleset used by the first release. */
   ruleset?: 'p/default'
+  /** One-shot wider mode requested after a sandbox denial. */
+  sandbox_permissions?: 'workspace-write' | 'danger-full-access'
+  /** User-facing reason required with `sandbox_permissions`. */
+  justification?: string
 }
 
 /** One source location reported by Semgrep. */
