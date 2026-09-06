@@ -1,8 +1,24 @@
 {
   "name": "@aaub-software/dsh-semgrep-sast",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Semgrep SAST bundle and model-facing scan tool for DeepSeek Harness.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Baiiduu/dsh-semgrep-sast.git",
+    "directory": "packages/bundle"
+  },
+  "homepage": "https://github.com/Baiiduu/dsh-semgrep-sast#readme",
+  "bugs": {
+    "url": "https://github.com/Baiiduu/dsh-semgrep-sast/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "semgrep",
+    "sast",
+    "security"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
