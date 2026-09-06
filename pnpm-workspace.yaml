@@ -1,3 +1,4 @@
 packages:
+  - packages/agent
   - packages/bundle
   - packages/runtimes/*

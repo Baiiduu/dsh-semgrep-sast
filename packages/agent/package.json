@@ -1,0 +1,29 @@
+{
+  "name": "@aaub-software/dsh-ssc-agent",
+  "version": "0.1.0",
+  "description": "Software supply chain security agent preset for DeepSeek Harness.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "presets/**/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "@aaub-software/dsh-semgrep-sast": "workspace:0.1.0"
+  }
+}
