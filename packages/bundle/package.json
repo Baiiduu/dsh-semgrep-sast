@@ -1,6 +1,6 @@
 {
   "name": "@aaub-software/dsh-semgrep-sast",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Semgrep SAST bundle and model-facing scan tool for DeepSeek Harness.",
   "license": "MIT",
   "repository": {
@@ -59,19 +59,19 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-sandbox": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-sandbox-policy": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-subprocess": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-user-approval": "^0.1.2-rc.1"
+    "@deepseek-ai/dsh-sandbox": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-subprocess": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-user-approval": "^0.1.5-rc.2"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-sandbox": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-sandbox-policy": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-subprocess": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-user-approval": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-sandbox": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-subprocess": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.1.5-rc.2",
     "@types/node": "^24.0.0",
     "typescript": "^5.9.0"
   }
