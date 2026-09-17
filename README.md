@@ -35,18 +35,80 @@ installs `@aaub-software/semgrep-runtime-win32-x64` on compatible systems.
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `paths` | No | Workspace-relative files or directories. Defaults to the workspace root. |
-| `ruleset` | No | Rule configuration. Version 0.1 supports only `p/default`. |
+| `ruleset` | No | Rule configuration. The current release supports only `p/default`. |
 | `sandbox_permissions` | Only for an approved retry | `workspace-write` or `danger-full-access`. |
 | `justification` | With `sandbox_permissions` | One sentence shown with the permission request. |
 
 Absolute paths, paths that escape the workspace, and symlinks resolving outside the
 workspace are rejected. Autofix is not exposed. Semgrep metrics are disabled.
 
-Results contain the Semgrep version, scanned paths, exact finding locations,
-diagnostics, duration, total and returned finding counts, and an explicit truncation
-flag. Findings are capped at 200 by the default bundle configuration. A `partial`
-status means Semgrep reported scan diagnostics; it does not mean that every returned
-finding is a confirmed vulnerability.
+Version 0.2 returns the public `ssc-sast/v1` contract from
+`@aaub-software/dsh-sast-contract`. Results contain scanner provenance, scanned paths,
+normalized findings, diagnostics, duration, total and returned finding counts, and an
+explicit truncation flag. Findings are capped at 200 by the default bundle
+configuration. A `partial` status means Semgrep reported scan diagnostics; it does not
+mean that every returned finding is a confirmed vulnerability.
+
+### Normalized result contract
+
+The Agent receives normalized JSON rather than native Semgrep output:
+
+```json
+{
+  "schemaVersion": "ssc-sast/v1",
+  "status": "completed",
+  "scanner": {
+    "name": "semgrep",
+    "version": "1.175.0",
+    "configuration": "p/default"
+  },
+  "scannedPaths": ["src/server.js"],
+  "findings": [
+    {
+      "id": "semgrep:f2b91e32bb169fc1",
+      "scanner": "semgrep",
+      "rule": {
+        "id": "javascript.lang.security.audit.detect-eval-with-expression",
+        "severity": "error",
+        "cwe": ["CWE-95"],
+        "owasp": ["A03:2021"]
+      },
+      "message": "Detected eval with a non-literal expression.",
+      "location": {
+        "path": "src/server.js",
+        "startLine": 2,
+        "startColumn": 18,
+        "endLine": 2,
+        "endColumn": 44
+      },
+      "fingerprint": "f2b91e32bb169fc1",
+      "evidence": [
+        {
+          "type": "semgrep.matched-code",
+          "data": { "text": "eval(req.query.expression)" }
+        },
+        {
+          "type": "semgrep.metavariables",
+          "data": { "$EXPR": "req.query.expression" }
+        }
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "summary": {
+    "totalFindings": 1,
+    "returnedFindings": 1,
+    "truncated": false,
+    "durationMs": 125
+  }
+}
+```
+
+The parser validates native Semgrep JSON before the adapter constructs the public
+contract. Optional metadata and evidence are bounded. CWE, OWASP, references, and
+fingerprints are retained only when Semgrep emitted them; the adapter does not guess
+missing metadata. Diagnostics remain separate from findings so incomplete coverage is
+not presented as a clean scan.
 
 ### Windows permission approval
 
@@ -108,6 +170,7 @@ Windows x64.
 pnpm install
 pnpm typecheck
 pnpm build
+pnpm test
 ```
 
 The repository is a pnpm workspace. The DSH bundle is under `packages/bundle`, and the
@@ -149,16 +212,77 @@ dsh plugin --profile web add @aaub-software/dsh-semgrep-sast
 | 参数 | 是否必需 | 说明 |
 | --- | --- | --- |
 | `paths` | 否 | 工作区相对文件或目录；默认扫描工作区根目录。 |
-| `ruleset` | 否 | 规则配置；0.1 版本只支持 `p/default`。 |
+| `ruleset` | 否 | 规则配置；当前版本只支持 `p/default`。 |
 | `sandbox_permissions` | 仅批准重试时 | 可选值为 `workspace-write` 或 `danger-full-access`。 |
 | `justification` | 与权限参数一起使用 | 展示给用户的一句话权限申请理由。 |
 
 插件会拒绝绝对路径、逃逸工作区的路径，以及最终解析到工作区外的符号链接。它不提供
 autofix，并关闭 Semgrep 指标上报。
 
-结果包含 Semgrep 版本、实际扫描路径、发现的精确位置、诊断信息、耗时、发现总数、
-返回数量以及明确的截断标志。默认最多向模型返回 200 条发现。`partial` 表示 Semgrep
-报告了影响覆盖范围的诊断，并不表示返回的每一项都已经被确认是漏洞。
+0.2 版本返回 `@aaub-software/dsh-sast-contract` 定义的公开 `ssc-sast/v1` 协议。
+结果包含扫描器溯源信息、实际扫描路径、规范化发现、诊断信息、耗时、发现总数、返回
+数量以及明确的截断标志。默认最多向模型返回 200 条发现。`partial` 表示 Semgrep 报告了
+影响覆盖范围的诊断，并不表示返回的每一项都已经被确认是漏洞。
+
+### 规范化结果协议
+
+Agent 接收规范化 JSON，而不是 Semgrep 原始输出：
+
+```json
+{
+  "schemaVersion": "ssc-sast/v1",
+  "status": "completed",
+  "scanner": {
+    "name": "semgrep",
+    "version": "1.175.0",
+    "configuration": "p/default"
+  },
+  "scannedPaths": ["src/server.js"],
+  "findings": [
+    {
+      "id": "semgrep:f2b91e32bb169fc1",
+      "scanner": "semgrep",
+      "rule": {
+        "id": "javascript.lang.security.audit.detect-eval-with-expression",
+        "severity": "error",
+        "cwe": ["CWE-95"],
+        "owasp": ["A03:2021"]
+      },
+      "message": "Detected eval with a non-literal expression.",
+      "location": {
+        "path": "src/server.js",
+        "startLine": 2,
+        "startColumn": 18,
+        "endLine": 2,
+        "endColumn": 44
+      },
+      "fingerprint": "f2b91e32bb169fc1",
+      "evidence": [
+        {
+          "type": "semgrep.matched-code",
+          "data": { "text": "eval(req.query.expression)" }
+        },
+        {
+          "type": "semgrep.metavariables",
+          "data": { "$EXPR": "req.query.expression" }
+        }
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "summary": {
+    "totalFindings": 1,
+    "returnedFindings": 1,
+    "truncated": false,
+    "durationMs": 125
+  }
+}
+```
+
+parser 会先验证 Semgrep 原始 JSON，再由适配器构造公共协议。可选 metadata 和 evidence
+均限制长度与数量。只有 Semgrep 实际输出的 CWE、OWASP、references 和 fingerprint 才会
+被保留，适配器不会猜测缺失信息。diagnostics 与 findings 分开，避免把扫描覆盖不完整
+错误解释为“没有漏洞”。
 
 ### Windows 权限批准流程
 
@@ -213,6 +337,7 @@ x64 用户的免安装支持路径是默认托管运行时。
 pnpm install
 pnpm typecheck
 pnpm build
+pnpm test
 ```
 
 仓库使用 pnpm workspace。DSH 组合包位于 `packages/bundle`，托管运行时包位于

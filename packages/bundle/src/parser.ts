@@ -1,4 +1,14 @@
-import type { SemgrepDiagnostic, SemgrepFinding } from './types.js'
+import type {
+  SemgrepDiagnostic,
+  SemgrepFinding,
+  SemgrepRuleMetadata,
+} from './types.js'
+
+const MAX_MATCHED_CODE_CHARS = 4_000
+const MAX_METADATA_ITEMS = 32
+const MAX_METADATA_VALUE_CHARS = 2_048
+const MAX_METAVARIABLES = 32
+const MAX_METAVARIABLE_CONTENT_CHARS = 2_000
 
 /** Validated subset of `semgrep scan --json` consumed by the plugin. */
 export interface ParsedSemgrepOutput {
@@ -62,6 +72,55 @@ function normalizeSeverity(value: unknown, field: string): SemgrepFinding['sever
   }
 }
 
+function parseOptionalStringList(value: unknown): string[] | undefined {
+  const candidates = typeof value === 'string'
+    ? [value]
+    : Array.isArray(value)
+      ? value
+      : []
+  const values = candidates
+    .filter((candidate): candidate is string => typeof candidate === 'string')
+    .map(candidate => candidate.trim())
+    .filter(candidate => candidate.length > 0 && candidate.length <= MAX_METADATA_VALUE_CHARS)
+  const uniqueValues = [...new Set(values)].slice(0, MAX_METADATA_ITEMS)
+  return uniqueValues.length === 0 ? undefined : uniqueValues
+}
+
+function parseRuleMetadata(value: unknown): SemgrepRuleMetadata | undefined {
+  if (!isRecord(value)) return undefined
+
+  const cwe = parseOptionalStringList(value.cwe)
+  const owasp = parseOptionalStringList(value.owasp)
+  const references = parseOptionalStringList(value.references)
+  if (cwe === undefined && owasp === undefined && references === undefined) return undefined
+
+  return {
+    ...(cwe === undefined ? {} : { cwe }),
+    ...(owasp === undefined ? {} : { owasp }),
+    ...(references === undefined ? {} : { references }),
+  }
+}
+
+function parseMatchedCode(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined
+  return value.length <= MAX_MATCHED_CODE_CHARS ? value : undefined
+}
+
+function parseMetavariables(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) return undefined
+
+  const entries: Array<[string, string]> = []
+  for (const [name, rawMetavariable] of Object.entries(value).slice(0, MAX_METAVARIABLES)) {
+    if (name.trim() === '' || !isRecord(rawMetavariable)) continue
+    const content = rawMetavariable.abstract_content
+    if (typeof content !== 'string'
+      || content.trim() === ''
+      || content.length > MAX_METAVARIABLE_CONTENT_CHARS) continue
+    entries.push([name, content])
+  }
+  return entries.length === 0 ? undefined : Object.fromEntries(entries)
+}
+
 function parseFinding(value: unknown, index: number): SemgrepFinding {
   const field = `results[${index}]`
   const finding = requireRecord(value, field)
@@ -69,6 +128,9 @@ function parseFinding(value: unknown, index: number): SemgrepFinding {
   const end = requireRecord(finding.end, `${field}.end`)
   const extra = requireRecord(finding.extra, `${field}.extra`)
   const fingerprint = extra.fingerprint
+  const metadata = parseRuleMetadata(extra.metadata)
+  const matchedCode = parseMatchedCode(extra.lines)
+  const metavariables = parseMetavariables(extra.metavars)
 
   if (fingerprint !== undefined && typeof fingerprint !== 'string') {
     throw new Error(`semgrep output ${field}.extra.fingerprint must be a string when present`)
@@ -84,6 +146,9 @@ function parseFinding(value: unknown, index: number): SemgrepFinding {
     endLine: requirePositiveInteger(end.line, `${field}.end.line`),
     endColumn: requirePositiveInteger(end.col, `${field}.end.col`),
     ...(fingerprint !== undefined ? { fingerprint } : {}),
+    ...(metadata === undefined ? {} : { metadata }),
+    ...(matchedCode === undefined ? {} : { matchedCode }),
+    ...(metavariables === undefined ? {} : { metavariables }),
   }
 }
 

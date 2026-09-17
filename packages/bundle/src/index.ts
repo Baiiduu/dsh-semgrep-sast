@@ -15,13 +15,13 @@ import { createSemgrepScanTool } from './tool.js'
 export { Config } from './config.js'
 export type { ResolvedConfig } from './config.js'
 export type {
-  RuntimeMode,
-  SemgrepDiagnostic,
-  SemgrepEngine,
-  SemgrepFinding,
-  SemgrepScanInput,
-  SemgrepScanResult,
-} from './types.js'
+  SemgrepEvidence,
+  SemgrepMatchedCodeEvidence,
+  SemgrepMetavariablesEvidence,
+  SemgrepSastScanResult,
+  SemgrepSastScanResult as SemgrepScanResult,
+} from './agent-result.js'
+export type { RuntimeMode, SemgrepScanInput } from './types.js'
 
 /** Cordis plugin name used in diagnostics. */
 export const name = 'semgrep-sast'

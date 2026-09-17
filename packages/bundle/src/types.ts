@@ -13,8 +13,15 @@ export interface SemgrepScanInput {
   justification?: string
 }
 
-/** One source location reported by Semgrep. */
-export interface SemgrepFinding {
+/** Rule metadata emitted by Semgrep and retained for deterministic normalization. */
+export interface SemgrepRuleMetadata {
+  cwe?: string[]
+  owasp?: string[]
+  references?: string[]
+}
+
+/** One validated finding parsed from native Semgrep JSON output. */
+export interface ParsedSemgrepFinding {
   ruleId: string
   severity: 'info' | 'warning' | 'error'
   message: string
@@ -24,14 +31,13 @@ export interface SemgrepFinding {
   endLine: number
   endColumn: number
   fingerprint?: string
+  metadata?: SemgrepRuleMetadata
+  matchedCode?: string
+  metavariables?: Record<string, string>
 }
 
-/** Semgrep engine identity used for a completed scan. */
-export interface SemgrepEngine {
-  name: 'semgrep'
-  version: string
-  runtimeMode: RuntimeMode
-}
+/** Backward-compatible internal name used by the current execution pipeline. */
+export type SemgrepFinding = ParsedSemgrepFinding
 
 /** One diagnostic emitted by Semgrep while processing rules or source files. */
 export interface SemgrepDiagnostic {
@@ -39,17 +45,4 @@ export interface SemgrepDiagnostic {
   code: number
   type: string
   message?: string
-}
-
-/** Canonical usable result returned by the `semgrep_scan` tool. */
-export interface SemgrepScanResult {
-  status: 'completed' | 'partial'
-  engine: SemgrepEngine
-  scannedPaths: string[]
-  findings: SemgrepFinding[]
-  diagnostics: SemgrepDiagnostic[]
-  totalFindings: number
-  returnedFindings: number
-  truncated: boolean
-  durationMs: number
 }

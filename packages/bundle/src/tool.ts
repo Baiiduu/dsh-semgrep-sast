@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-user-approval'
+import type { SastScanResult } from '@aaub-software/dsh-sast-contract'
 import {
   approveEscalation,
   escalationHintMarker,
@@ -10,21 +11,13 @@ import {
   validateEscalationArgs,
 } from '@deepseek-ai/dsh-sandbox'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import {
+  createSemgrepSastResult,
+} from './agent-result.js'
 import { DEFAULT_RULESET, type ResolvedConfig } from './config.js'
 import type { ResolvedRuntime } from './runtime.js'
 import { runSemgrep } from './semgrep.js'
-import type {
-  SemgrepDiagnostic,
-  SemgrepFinding,
-  SemgrepScanInput,
-  SemgrepScanResult,
-} from './types.js'
-
-const SEVERITY_ORDER: Readonly<Record<SemgrepFinding['severity'], number>> = {
-  error: 0,
-  warning: 1,
-  info: 2,
-}
+import type { SemgrepScanInput } from './types.js'
 
 function isInside(root: string, candidate: string): boolean {
   const relativePath = relative(root, candidate)
@@ -61,56 +54,57 @@ async function resolveTargets(workspaceRoot: string, paths: readonly string[]): 
   return [...new Set(resolved)]
 }
 
-function compareFindings(left: SemgrepFinding, right: SemgrepFinding): number {
-  return SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity]
-    || left.path.localeCompare(right.path)
-    || left.startLine - right.startLine
-    || left.startColumn - right.startColumn
-    || left.ruleId.localeCompare(right.ruleId)
+function renderResult(result: SastScanResult): string {
+  return JSON.stringify(result)
 }
 
-function renderDiagnostic(diagnostic: SemgrepDiagnostic): string {
-  const message = diagnostic.message === undefined ? '' : `: ${diagnostic.message}`
-  return `- [${diagnostic.level}] code ${diagnostic.code}, ${diagnostic.type}${message}`
-}
-
-function renderResult(result: SemgrepScanResult): string {
-  const lines = [
-    `Semgrep scan ${result.status}.`,
-    `Engine: Semgrep ${result.engine.version} (${result.engine.runtimeMode} runtime).`,
-    `Scanned paths: ${result.scannedPaths.length}.`,
-    `Findings: ${result.totalFindings}; returned: ${result.returnedFindings}; truncated: ${String(result.truncated)}.`,
-    `Duration: ${result.durationMs}ms.`,
-  ]
-
-  if (result.findings.length > 0) {
-    lines.push('', 'Findings:')
-    for (const finding of result.findings) {
-      lines.push(
-        `- [${finding.severity}] ${finding.ruleId} at ${finding.path}:${finding.startLine}:${finding.startColumn}`
-        + `-${finding.endLine}:${finding.endColumn}: ${finding.message}`,
-      )
-    }
-  }
-  if (result.diagnostics.length > 0) {
-    lines.push('', 'Diagnostics:', ...result.diagnostics.map(renderDiagnostic))
-  }
-  return lines.join('\n')
-}
-
-const findingSchema = {
+const locationSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    ruleId: { type: 'string', required: true },
-    severity: { type: 'string', enum: ['info', 'warning', 'error'], required: true },
-    message: { type: 'string', required: true },
     path: { type: 'string', required: true },
     startLine: { type: 'integer', required: true },
     startColumn: { type: 'integer', required: true },
     endLine: { type: 'integer', required: true },
     endColumn: { type: 'integer', required: true },
+  },
+} as const
+
+const ruleSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string', required: true },
+    name: { type: 'string' },
+    severity: { type: 'string', enum: ['info', 'warning', 'error'], required: true },
+    cwe: { type: 'array', items: { type: 'string' } },
+    owasp: { type: 'array', items: { type: 'string' } },
+    references: { type: 'array', items: { type: 'string' } },
+  },
+} as const
+
+const evidenceSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    type: { type: 'string', required: true },
+    description: { type: 'string' },
+    locations: { type: 'array', items: locationSchema },
+    data: { type: 'object', additionalProperties: true },
+  },
+} as const
+
+const findingSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string', required: true },
+    scanner: { type: 'string', required: true },
+    rule: { ...ruleSchema, required: true },
+    message: { type: 'string', required: true },
+    location: { ...locationSchema, required: true },
     fingerprint: { type: 'string' },
+    evidence: { type: 'array', items: evidenceSchema, required: true },
   },
 } as const
 
@@ -118,10 +112,11 @@ const diagnosticSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    level: { type: 'string', enum: ['error', 'warn', 'info'], required: true },
-    code: { type: 'integer', required: true },
+    level: { type: 'string', enum: ['error', 'warning', 'info'], required: true },
     type: { type: 'string', required: true },
-    message: { type: 'string' },
+    message: { type: 'string', required: true },
+    code: { oneOf: [{ type: 'integer' }, { type: 'string' }] },
+    location: locationSchema,
   },
 } as const
 
@@ -138,7 +133,8 @@ export function createSemgrepScanTool(
       + 'Returns exact finding locations and reports partial coverage separately from result truncation. '
       + 'On Windows, Semgrep Core cannot open the system certificate store under the Harness ACL sandbox. '
       + 'Call normally first; after the reported denial, retry the exact scan once with '
-      + 'sandbox_permissions="danger-full-access" and a one-sentence justification so Harness can ask the user for approval.',
+      + 'sandbox_permissions="danger-full-access" and a one-sentence justification so Harness can ask the user for approval. '
+      + 'Returns the versioned ssc-sast/v1 normalized result contract.',
     parameters: {
       paths: {
         type: 'array',
@@ -167,24 +163,33 @@ export function createSemgrepScanTool(
         type: 'object',
         additionalProperties: false,
         properties: {
+          schemaVersion: { type: 'string', const: 'ssc-sast/v1', required: true },
           status: { type: 'string', enum: ['completed', 'partial'], required: true },
-          engine: {
+          scanner: {
             type: 'object',
             additionalProperties: false,
             required: true,
             properties: {
-              name: { type: 'string', const: 'semgrep', required: true },
+              name: { type: 'string', required: true },
               version: { type: 'string', required: true },
-              runtimeMode: { type: 'string', enum: ['bundled', 'system'], required: true },
+              configuration: { type: 'string' },
             },
           },
           scannedPaths: { type: 'array', items: { type: 'string' }, required: true },
           findings: { type: 'array', items: findingSchema, required: true },
           diagnostics: { type: 'array', items: diagnosticSchema, required: true },
-          totalFindings: { type: 'integer', required: true },
-          returnedFindings: { type: 'integer', required: true },
-          truncated: { type: 'boolean', required: true },
-          durationMs: { type: 'integer', required: true },
+          summary: {
+            type: 'object',
+            additionalProperties: false,
+            required: true,
+            properties: {
+              scannedFiles: { type: 'integer' },
+              totalFindings: { type: 'integer', required: true },
+              returnedFindings: { type: 'integer', required: true },
+              truncated: { type: 'boolean', required: true },
+              durationMs: { type: 'number', required: true },
+            },
+          },
         },
       },
       render: (_args, result) => [{ type: 'text', text: renderResult(result) }],
@@ -252,23 +257,7 @@ export function createSemgrepScanTool(
         signal: exec.signal,
         sandboxPolicy,
       })
-      const findings = [...scan.findings].sort(compareFindings).slice(0, config.maxFindings)
-      const result: SemgrepScanResult = {
-        status: scan.status,
-        engine: {
-          name: 'semgrep',
-          version: scan.version,
-          runtimeMode: runtime.mode,
-        },
-        scannedPaths: scan.scannedPaths,
-        findings,
-        diagnostics: scan.diagnostics,
-        totalFindings: scan.findings.length,
-        returnedFindings: findings.length,
-        truncated: findings.length < scan.findings.length,
-        durationMs: scan.durationMs,
-      }
-      return result
+      return createSemgrepSastResult(scan, configSpecifier, config.maxFindings)
     },
   })
 }
