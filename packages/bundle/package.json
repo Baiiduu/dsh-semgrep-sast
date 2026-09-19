@@ -1,6 +1,6 @@
 {
   "name": "@aaub-software/dsh-semgrep-sast",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Semgrep SAST bundle and model-facing scan tool for DeepSeek Harness.",
   "license": "MIT",
   "repository": {
@@ -57,7 +57,7 @@
     "@deepseek-ai/schemastery": "^3.18.2"
   },
   "optionalDependencies": {
-    "@aaub-software/semgrep-runtime-win32-x64": "workspace:0.1.0"
+    "@aaub-software/semgrep-runtime-win32-x64": "0.1.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",

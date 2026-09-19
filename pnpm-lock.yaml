@@ -43,8 +43,8 @@ importers:
         version: 5.9.3
     optionalDependencies:
       '@aaub-software/semgrep-runtime-win32-x64':
-        specifier: workspace:0.1.0
-        version: link:../runtimes/win32-x64
+        specifier: 0.1.0
+        version: 0.1.0
 
   packages/runtimes/win32-x64: {}
 
@@ -53,6 +53,12 @@ packages:
   '@aaub-software/dsh-sast-contract@0.1.0':
     resolution: {integrity: sha512-c6NJJ5k+s21YB6oVabY731osqpu41lxim6g1IurEZ/aWPgJDtOpoX/5PmLkc3ret5el3go7j1S38SQh20tITgQ==}
     engines: {node: '>=24.0.0'}
+
+  '@aaub-software/semgrep-runtime-win32-x64@0.1.0':
+    resolution: {integrity: sha512-494Yk6AB8bR08yxoYUNZ/PEdAOiG+8PTu4s276O9vsBEphAtTa/o9XHdugSXydvZKHZQneHVwbf1UNG/mE2TQw==}
+    engines: {node: '>=24.0.0'}
+    cpu: [x64]
+    os: [win32]
 
   '@deepseek-ai/cordis@4.0.2':
     resolution: {integrity: sha512-asOnXP1TzFSFQlHb1iegDZp0z/8WD1c7YNrwJR/Tx2bzNuMXfcekE/I67Iv6SQXeLB4csxqCngzQKANP7gdw0g==}
@@ -229,6 +235,9 @@ packages:
 snapshots:
 
   '@aaub-software/dsh-sast-contract@0.1.0': {}
+
+  '@aaub-software/semgrep-runtime-win32-x64@0.1.0':
+    optional: true
 
   '@deepseek-ai/cordis@4.0.2':
     dependencies:
