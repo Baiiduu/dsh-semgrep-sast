@@ -66,7 +66,7 @@ test('normalizes representative Semgrep JSON into ssc-sast/v1', () => {
     scannedPaths: ['src/server.js'],
     findings: [
       {
-        id: 'semgrep:f2b91e32bb169fc1',
+        id: 'semgrep:javascript.lang.security.audit.detect-eval-with-expression:src%2Fserver.js:2:18:2:44',
         scanner: 'semgrep',
         rule: {
           id: 'javascript.lang.security.audit.detect-eval-with-expression',
@@ -108,4 +108,71 @@ test('normalizes representative Semgrep JSON into ssc-sast/v1', () => {
       durationMs: 125,
     },
   })
+})
+
+test('generates distinct finding ids when Semgrep reuses a fingerprint', () => {
+  const sharedFingerprint = 'requires login'
+  const parsed = parseSemgrepOutput(JSON.stringify({
+    version: '1.175.0',
+    results: [
+      {
+        check_id: 'pnpm.rule-one',
+        path: 'pnpm-workspace.yaml',
+        start: { line: 1, col: 1 },
+        end: { line: 1, col: 8 },
+        extra: {
+          severity: 'WARNING',
+          message: 'First distinct finding.',
+          fingerprint: sharedFingerprint,
+        },
+      },
+      {
+        check_id: 'pnpm.rule-two',
+        path: 'pnpm-workspace.yaml',
+        start: { line: 2, col: 1 },
+        end: { line: 2, col: 8 },
+        extra: {
+          severity: 'WARNING',
+          message: 'Second distinct finding.',
+          fingerprint: sharedFingerprint,
+        },
+      },
+      {
+        check_id: 'pnpm.rule-three',
+        path: 'package.json',
+        start: { line: 3, col: 2 },
+        end: { line: 3, col: 12 },
+        extra: {
+          severity: 'WARNING',
+          message: 'Third distinct finding.',
+          fingerprint: sharedFingerprint,
+        },
+      },
+    ],
+    errors: [],
+    paths: {
+      scanned: ['pnpm-workspace.yaml', 'package.json'],
+      skipped: [],
+    },
+  }))
+
+  const result = createSemgrepSastResult(
+    {
+      status: 'completed',
+      version: parsed.version ?? 'unknown',
+      scannedPaths: parsed.scannedPaths,
+      findings: parsed.findings,
+      diagnostics: parsed.reportedErrors,
+      durationMs: 10,
+    },
+    'p/default',
+    200,
+  )
+
+  assert.equal(result.findings.length, 3)
+  assert.equal(new Set(result.findings.map(finding => finding.id)).size, 3)
+  assert.deepEqual(
+    result.findings.map(finding => finding.fingerprint),
+    [sharedFingerprint, sharedFingerprint, sharedFingerprint],
+  )
 })

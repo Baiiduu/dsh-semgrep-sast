@@ -105,14 +105,14 @@ function createEvidence(finding: SemgrepFinding): SemgrepEvidence[] {
 }
 
 function createFindingId(finding: SemgrepFinding): string {
-  const fingerprint = finding.fingerprint?.trim()
-  if (fingerprint !== undefined && fingerprint !== '') return `semgrep:${fingerprint}`
   return [
     'semgrep',
     encodeURIComponent(finding.ruleId),
     encodeURIComponent(finding.path),
     String(finding.startLine),
     String(finding.startColumn),
+    String(finding.endLine),
+    String(finding.endColumn),
   ].join(':')
 }
 
