@@ -1,6 +1,6 @@
 {
   "manifestVersion": 1,
-  "semgrepVersion": "1.175.0",
+  "semgrepVersion": "1.163.0",
   "platform": "win32",
   "architecture": "x64",
   "launcher": {

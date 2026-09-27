@@ -32,7 +32,7 @@ export interface RunSemgrepResult {
 function boundedDiagnostic(text: string): string {
   const trimmed = text.trim()
   if (trimmed.length <= 4_000) return trimmed
-  return `${trimmed.slice(0, 4_000)}\n[diagnostic truncated]`
+  return `${trimmed.slice(0, 1_500)}\n[diagnostic truncated]\n${trimmed.slice(-2_500)}`
 }
 
 function confinedPolicy(policy: SandboxExecutionPolicy): SandboxPolicy {
@@ -54,7 +54,7 @@ export async function runSemgrep(
     ...request.runtime.arguments,
     'scan',
     '--json',
-    '--quiet',
+    '--verbose',
     '--metrics=off',
     '--config',
     request.configSpecifier,
@@ -88,7 +88,11 @@ export async function runSemgrep(
 
   if (request.signal?.aborted === true) throw request.signal.reason
   if (timeoutSignal.aborted) {
-    throw new Error(`semgrep-sast: scan timed out after ${request.timeoutMs}ms`)
+    const diagnostic = boundedDiagnostic(stderr?.text ?? '')
+    throw new Error(
+      `semgrep-sast: scan timed out after ${request.timeoutMs}ms`
+      + (diagnostic === '' ? '\nNo stderr diagnostics were captured.' : `\n${diagnostic}`),
+    )
   }
   if (stdout === undefined || stderr === undefined) {
     throw new Error('semgrep-sast: subprocess did not provide collected output')

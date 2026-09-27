@@ -23,13 +23,13 @@ The runtime is assembled from Python's official Windows x64 embeddable archive.
 This project changes its module search-path configuration but does not modify
 CPython source code.
 
-## Semgrep 1.175.0
+## Semgrep 1.163.0
 
 - Project: Semgrep Community Edition
 - Upstream: https://github.com/semgrep/semgrep
-- Corresponding source: https://github.com/semgrep/semgrep/tree/v1.175.0
+- Corresponding source: https://github.com/semgrep/semgrep/tree/v1.163.0
 - License: GNU Lesser General Public License v2.1 or later
-- Package metadata: https://pypi.org/project/semgrep/1.175.0/
+- Package metadata: https://pypi.org/project/semgrep/1.163.0/
 
 The runtime is assembled from Semgrep's official Windows x64 wheel. This
 project does not modify Semgrep source code. License files carried by the wheel

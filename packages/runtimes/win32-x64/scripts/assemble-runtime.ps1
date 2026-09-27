@@ -14,7 +14,7 @@ $PipVersion = '26.2.1'
 $PipUrl = 'https://files.pythonhosted.org/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl'
 $PipSha256 = '71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e'
 
-$SemgrepVersion = '1.175.0'
+$SemgrepVersion = '1.163.0'
 
 function Get-NormalizedPath([string] $Path) {
   return [System.IO.Path]::GetFullPath($Path).TrimEnd(

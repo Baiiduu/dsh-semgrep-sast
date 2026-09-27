@@ -11,7 +11,10 @@ workspace and returns bounded, structured findings for the agent to review in so
 context.
 
 The default managed runtime currently supports **Windows x64**. It includes CPython
-3.14.7 and Semgrep 1.175.0, so users do not need to install Python or Semgrep separately.
+3.14.7 and Semgrep 1.163.0, so users do not need to install Python or Semgrep separately.
+
+This version pins the managed runtime to avoid a Windows Junction traversal regression.
+See [the compatibility decision and regression test](docs/windows-runtime-compatibility.md).
 
 ### Install
 
@@ -59,7 +62,7 @@ The Agent receives normalized JSON rather than native Semgrep output:
   "status": "completed",
   "scanner": {
     "name": "semgrep",
-    "version": "1.175.0",
+    "version": "1.163.0",
     "configuration": "p/default"
   },
   "scannedPaths": ["src/server.js"],
@@ -175,6 +178,9 @@ pnpm test
 
 The repository is a pnpm workspace. The DSH bundle is under `packages/bundle`, and the
 managed runtime package is under `packages/runtimes/win32-x64`.
+Development links the local runtime package. Before running real scans or packing
+the runtime, assemble its ignored binary payload and run the
+[offline regression](docs/windows-runtime-compatibility.md#reproducing-validation).
 
 ### Licenses
 
@@ -190,8 +196,11 @@ details. Semgrep Registry rules are covered by their own rules license.
 向模型注册 `semgrep_scan` 工具。它只扫描当前工作区内的文件或目录，并返回有大小
 限制的结构化结果，供 Agent 结合源码上下文继续复核。
 
-当前默认托管运行时支持 **Windows x64**，内置 CPython 3.14.7 和 Semgrep 1.175.0，
+当前默认托管运行时支持 **Windows x64**，内置 CPython 3.14.7 和 Semgrep 1.163.0，
 用户不需要另外安装 Python 或 Semgrep。
+
+此版本固定托管运行时版本，以避开 Windows Junction 循环遍历回归。
+详见[兼容方案与回归测试](docs/windows-runtime-compatibility.md)。
 
 ### 安装
 
@@ -234,7 +243,7 @@ Agent 接收规范化 JSON，而不是 Semgrep 原始输出：
   "status": "completed",
   "scanner": {
     "name": "semgrep",
-    "version": "1.175.0",
+    "version": "1.163.0",
     "configuration": "p/default"
   },
   "scannedPaths": ["src/server.js"],
@@ -342,6 +351,8 @@ pnpm test
 
 仓库使用 pnpm workspace。DSH 组合包位于 `packages/bundle`，托管运行时包位于
 `packages/runtimes/win32-x64`。
+开发环境链接本地运行时包。执行真实扫描或打包运行时之前，需要组装未纳入 Git 的
+二进制文件，并运行[离线回归测试](docs/windows-runtime-compatibility.md#reproducing-validation)。
 
 ### 许可证
 
