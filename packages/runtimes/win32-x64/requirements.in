@@ -1,3 +1,0 @@
-# Windows compatibility pin: 1.164.0 introduced eager ignore-cache traversal,
-# which follows pnpm Junction cycles before target filtering. See README.md.
-semgrep==1.163.0

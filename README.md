@@ -1,361 +1,148 @@
-# DeepSeek Harness Semgrep SAST
+# DSH Semgrep SAST for Claude Code
 
-[English](#english) | [简体中文](#简体中文)
+将 `dsh-semgrep-sast` 0.3.0 的扫描能力接入 Claude Code Mod。模型工具名：
+
+```text
+mcp__dsh-semgrep-sast-cc__semgrep_scan
+```
+
+保留 `ssc-sast/v1` 结果、CWE 优先级、跨文件分散、源码上下文及离线 `cwe-audit` 规则。扫描由模型显式调用。入口仅注册工具并执行扫描，不包含自动扫描、UI 或 MCP server。
+
+## 安装与使用
+
+需要 **Node.js 24+** 和支持 Mod 的 **Claude Code CLI 2.1.287+**。本版在 Windows x64、Node 24.13.0、Claude Code 2.1.291 上验证。
+
+本版本发布在 fork 仓库的 [`claude-code-mod` 分支](https://github.com/LunTr/dsh-semgrep-sast-cc/tree/claude-code-mod)，插件位于分支根目录。上游项目为 [Baiiduu/dsh-semgrep-sast](https://github.com/Baiiduu/dsh-semgrep-sast)。
+
+```powershell
+git clone --branch claude-code-mod --single-branch https://github.com/LunTr/dsh-semgrep-sast-cc.git dsh-semgrep-sast-cc
+```
+
+下载后按下述步骤准备 Semgrep 运行时，再从待扫描项目启动 Claude Code。
+
+### Windows x64
+
+复用 `@aaub-software/semgrep-runtime-win32-x64` **0.1.1**，包含 CPython 3.14.7 和 Semgrep 1.163.0。该版本截至 2026-10-07 尚未发布到 npm；从现有 DSH 源码打包安装：
+
+```powershell
+# 从同时包含两个项目的目录执行
+npm pack ./dsh-semgrep-sast/packages/runtimes/win32-x64 --pack-destination .
+cd dsh-semgrep-sast-cc
+npm install --no-save --package-lock=false --ignore-scripts ../aaub-software-semgrep-runtime-win32-x64-0.1.1.tgz
+```
+
+打包要求原运行时已完成组装；原项目的运行时构建脚本与第三方许可说明位于 `packages/runtimes/win32-x64`。也可以使用已生成的同版本 `.tgz` 文件。运行时安装在本插件自己的 `node_modules` 中，扫描时无需访问原 DSH 目录。
+
+在待扫描项目目录启动 Claude Code，插件参数使用绝对路径：
+
+```powershell
+claude --plugin-dir E:/DL/AGENTSFT/dsh-semgrep-sast-cc
+```
+
+然后输入：
+
+```text
+使用 semgrep_scan，以 cwe-audit 扫描当前项目；优先 CWE-22，返回最多 30 条结果并附带前后 3 行源码。检查输入可达性及已有防护。
+```
+
+### 系统 Semgrep / Linux / macOS
+
+Linux/macOS 默认调用 PATH 中的 `semgrep`。Windows 可以通过环境变量指定已安装的 Semgrep 可执行文件：
+
+```powershell
+$env:DSH_SEMGREP_EXECUTABLE = 'C:/tools/semgrep/Scripts/semgrep.exe'
+claude --plugin-dir E:/DL/AGENTSFT/dsh-semgrep-sast-cc
+```
+
+该变量是单个可执行文件路径，不接受 shell 命令或附加参数。Linux/macOS 的代码路径尚未实机验证。
+
+插件加载后 `/plugin` 显示活动 Mod，修改后可执行 `/reload-plugins`。本版的入口遵循 Claude Mod API；DeepSeek Harness 对这些 API 的兼容性需要在其 Mod 宿主上单独验证。
+
+## 参数与返回值
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `paths` | `["."]` | 工作区相对文件或目录，至少一项 |
+| `ruleset` | `p/default` | Registry 规则；`cwe-audit` 使用随包离线规则 |
+| `focus_cwes` | `[]` | 如 `["CWE-22"]`，在截断前优先排序 |
+| `diversify` | `false` | 在同一相关性级别内按文件轮转 |
+| `context_lines` | `0` | 匹配起始行前后各 0–20 行 |
+| `max_findings` | `200` | 返回 1–200 条 finding |
+
+返回 `schemaVersion: "ssc-sast/v1"`，包含 `status`、`scanner`、`scannedPaths`、`findings`、`diagnostics`、`summary`。解析警告/错误对应 `partial`；finding 数量截断单独由 `summary.truncated` 表示。扫描失败以明确错误返回，调用方应据此报告扫描未完成。
+
+`cwe-audit` 的匹配用于定位候选代码，需检查输入来源、可达性和防护。源码片段作为待分析数据处理。
+
+## 最小适配范围
+
+```text
+.claude-plugin/plugin.json   Claude 插件清单
+hooks/hooks.json             hooks module 入口
+hooks/register.js            session.start 注册工具；tool.call 处理扫描
+scripts/scan.mjs             JSON stdin → 独立 Node runner → JSON stdout
+lib/runner.js                参数/路径校验、运行时解析、进程控制
+lib/parser.js                复用原 Semgrep JSON 解析
+lib/agent-result.js          复用原排序与 ssc-sast/v1 转换
+lib/source-context.js        复用原源码片段提取
+rules/cwe-audit.json         原离线审计规则
+```
+
+Mod hook 通过 `$.process.run` 启动 Node runner。Node API 留在外部进程中，符合 [Mod API 运行环境](https://code.claude.com/docs/en/plugins/mods/api#reach-files-processes-and-the-network)。三个复用模块从原 TypeScript 去除类型生成，协议版本常量固定为 `ssc-sast/v1`，因此运行时无需 Cordis、DSH 服务或编译步骤。
+
+更新共享逻辑时，在本目录执行：
+
+```powershell
+node scripts/sync-core.mjs ../dsh-semgrep-sast
+```
+
+权限采用 [Claude Mod 的宿主权限模型](https://code.claude.com/docs/en/plugins/mods/overview#what-a-mod-can-reach)。进程使用当前用户权限，原 Harness 的 `sandbox_permissions` / `justification` 参数由此移除。相对路径、realpath 越界检查约束扫描目标；这层检查不提供 OS 沙箱隔离。工具未注册权限自动批准逻辑。
+
+扫描使用只读 Semgrep 参数、关闭 metrics 与版本检查。`p/default` 需要联网获取 Registry 规则；`cwe-audit` 从本地加载。每次扫描使用独立临时目录，结束后清理。扫描超时 300 秒，Mod 进程调用超时 310 秒；runner 处理取消和进程树终止。Semgrep stdout 上限 32 MiB、stderr 上限 1 MiB，返回 JSON 上限 512 KiB；超限提示缩小扫描范围。源码上下文沿用单文件 512 KiB、总片段 24,000 字符上限。
+
+## 验证
+
+```powershell
+npm test
+claude plugin validate --strict .
+claude plugin test .
+
+# 加上真实 Windows 离线扫描
+$env:SEMGREP_TEST_MANIFEST = "$PWD/node_modules/@aaub-software/semgrep-runtime-win32-x64/runtime-manifest.json"
+npm test
+```
+
+测试覆盖协议转换、CWE 排序、partial/truncation、路径与符号链接越界、超时、取消、输出上限、真实离线扫描，以及官方 Mod 宿主中的工具注册、stdin/cwd 传递、错误和其他工具放行。官方 Mod 测试使用进程桩；真实 Semgrep 扫描由 Node 集成测试验证。
+
+2026-10-07 验证结果：严格验证通过，9 项 Node 测试与 4 项官方 Mod 测试通过；额外通过实际 CLI 扫描含中文和空格的文件名。尚未进行真实模型会话中的自动工具选择测试。
+
+## 发布渠道（2026-10-07 核对）
+
+Mod 随 Claude Plugin 分发，可使用以下渠道：
+
+1. **Anthropic Directory**：在 [开发者门户](https://claude.ai/directory/manage) 提交 Plugin bundle；填写 GitHub 仓库与插件子目录。需要有资格的付费计划、连接的 GitHub 账号及仓库写权限；公开上架前仓库须公开。提交、验证与审核流程见[官方提交文档](https://claude.com/docs/plugins/submit)。Mod 功能运行于 Claude Code，跨产品支持以[组件支持表](https://claude.com/docs/plugins/platform-support)为准。
+2. **自建 Plugin Marketplace**：在托管仓库放置 `.claude-plugin/marketplace.json`，用户通过 `/plugin marketplace add OWNER/REPO` 添加，再 `/plugin install dsh-semgrep-sast-cc@MARKETPLACE` 安装。见[创建 marketplace](https://code.claude.com/docs/en/plugin-marketplaces)。
+3. **目录或 ZIP 分享**：用户下载后通过 `claude --plugin-dir <目录或zip>` 加载。见[分发文档](https://code.claude.com/docs/en/plugins/publish)。
+
+Anthropic Directory 与 `claude-plugins-official` 是不同的发布入口；官方文档说明，后者通过 Anthropic 合作联系人咨询上架。Directory 的本地验证通过后，门户还会运行额外规则检查。
+
+公开目录上架前需落实 Windows 运行时的分发：上传 0.1.1 npm 包或提供带第三方许可的运行时包。Claude 安装插件后仍需上述运行时安装步骤；本插件不会自动下载依赖。源码通过 fork 仓库的 `claude-code-mod` 分支分发，尚未提交外部插件目录。
 
 ## English
 
-`@aaub-software/dsh-semgrep-sast` is a Cordis bundle that exposes the model-facing
-`semgrep_scan` tool in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
-It runs read-only Semgrep SAST scans against files and directories inside the current
-workspace and returns bounded, structured findings for the agent to review in source
-context.
-
-The default managed runtime currently supports **Windows x64**. It includes CPython
-3.14.7 and Semgrep 1.163.0, so users do not need to install Python or Semgrep separately.
-
-This version pins the managed runtime to avoid a Windows Junction traversal regression.
-See [the compatibility decision and regression test](docs/windows-runtime-compatibility.md).
-
-### Install
-
-DeepSeek Harness requires Node.js 24 or newer. Install the prebuilt bundle into the
-profile you use, for example `web`:
-
-```powershell
-dsh plugin --profile web add @aaub-software/dsh-semgrep-sast
-```
-
-Restart that profile after installation. The agent will then see a tool named
-`semgrep_scan`.
-
-The bundle uses the managed Windows runtime by default. Installing the npm package also
-installs `@aaub-software/semgrep-runtime-win32-x64` on compatible systems.
-
-### Tool behavior
-
-`semgrep_scan` accepts:
-
-| Parameter | Required | Description |
-| --- | --- | --- |
-| `paths` | No | Workspace-relative files or directories. Defaults to the workspace root. |
-| `ruleset` | No | Rule configuration. The current release supports only `p/default`. |
-| `sandbox_permissions` | Only for an approved retry | `workspace-write` or `danger-full-access`. |
-| `justification` | With `sandbox_permissions` | One sentence shown with the permission request. |
-
-Absolute paths, paths that escape the workspace, and symlinks resolving outside the
-workspace are rejected. Autofix is not exposed. Semgrep metrics are disabled.
-
-Version 0.2 returns the public `ssc-sast/v1` contract from
-`@aaub-software/dsh-sast-contract`. Results contain scanner provenance, scanned paths,
-normalized findings, diagnostics, duration, total and returned finding counts, and an
-explicit truncation flag. Findings are capped at 200 by the default bundle
-configuration. A `partial` status means Semgrep reported scan diagnostics; it does not
-mean that every returned finding is a confirmed vulnerability.
-
-### Normalized result contract
-
-The Agent receives normalized JSON rather than native Semgrep output:
-
-```json
-{
-  "schemaVersion": "ssc-sast/v1",
-  "status": "completed",
-  "scanner": {
-    "name": "semgrep",
-    "version": "1.163.0",
-    "configuration": "p/default"
-  },
-  "scannedPaths": ["src/server.js"],
-  "findings": [
-    {
-      "id": "semgrep:f2b91e32bb169fc1",
-      "scanner": "semgrep",
-      "rule": {
-        "id": "javascript.lang.security.audit.detect-eval-with-expression",
-        "severity": "error",
-        "cwe": ["CWE-95"],
-        "owasp": ["A03:2021"]
-      },
-      "message": "Detected eval with a non-literal expression.",
-      "location": {
-        "path": "src/server.js",
-        "startLine": 2,
-        "startColumn": 18,
-        "endLine": 2,
-        "endColumn": 44
-      },
-      "fingerprint": "f2b91e32bb169fc1",
-      "evidence": [
-        {
-          "type": "semgrep.matched-code",
-          "data": { "text": "eval(req.query.expression)" }
-        },
-        {
-          "type": "semgrep.metavariables",
-          "data": { "$EXPR": "req.query.expression" }
-        }
-      ]
-    }
-  ],
-  "diagnostics": [],
-  "summary": {
-    "totalFindings": 1,
-    "returnedFindings": 1,
-    "truncated": false,
-    "durationMs": 125
-  }
-}
-```
-
-The parser validates native Semgrep JSON before the adapter constructs the public
-contract. Optional metadata and evidence are bounded. CWE, OWASP, references, and
-fingerprints are retained only when Semgrep emitted them; the adapter does not guess
-missing metadata. Diagnostics remain separate from findings so incomplete coverage is
-not presented as a clean scan.
-
-### Windows permission approval
-
-Semgrep Core cannot open the Windows system certificate store inside the current
-DeepSeek Harness ACL sandbox. To keep the wider permission explicit, the first
-restricted call does not start Semgrep. It returns the standard Harness sandbox-denial
-marker and asks the model to retry the same scan with:
-
-```json
-{
-  "sandbox_permissions": "danger-full-access",
-  "justification": "Run the requested Semgrep scan because Semgrep Core cannot access the Windows certificate store inside the Harness ACL sandbox."
-}
-```
-
-Harness then asks the user for approval. The scan runs only after approval. Wider
-access is never requested silently or treated as a standing permission by this tool.
-
-### Security and resource controls
-
-- Scan targets must remain inside the active workspace.
-- Scans are read-only and do not offer autofix.
-- Metrics are disabled with `--metrics=off` and `SEMGREP_SEND_METRICS=off`.
-- Cache, configuration, settings, version-cache, and log locations are redirected to
-  the scan's temporary environment.
-- Harness process services enforce cancellation, a five-minute default timeout, a
-  two-second termination grace period, and process-tree termination.
-- Captured stdout is limited to 32 MiB and stderr to 1 MiB. Oversized JSON output fails
-  closed instead of returning incomplete JSON.
-- Model-facing findings are deterministically ordered and capped; truncation is
-  reported separately from partial scan coverage.
-
-The default `p/default` ruleset is fetched from the Semgrep Registry at scan time, so a
-scan requires network access when the rules are not already available in the temporary
-environment. Registry rules are not redistributed by this project.
-
-### Configuration
-
-The shipped bundle layer uses:
-
-```yaml
-- insert:
-    - id: semgrep-sast
-      name: '@aaub-software/dsh-semgrep-sast'
-      config:
-        runtimeMode: bundled
-        defaultRuleset: p/default
-        timeoutMs: 300000
-        maxFindings: 200
-```
-
-Advanced deployments may select `runtimeMode: system`, but must also provide an
-explicit `executable`. The managed runtime is the supported zero-install path for
-Windows x64.
-
-### Development
-
-```powershell
-pnpm install
-pnpm typecheck
-pnpm build
-pnpm test
-```
-
-The repository is a pnpm workspace. The DSH bundle is under `packages/bundle`, and the
-managed runtime package is under `packages/runtimes/win32-x64`.
-Development links the local runtime package. Before running real scans or packing
-the runtime, assemble its ignored binary payload and run the
-[offline regression](docs/windows-runtime-compatibility.md#reproducing-validation).
-
-### Licenses
-
-The bundle code is released under the MIT License. The managed runtime is an aggregate
-distribution whose components retain their upstream licenses. See
-`packages/runtimes/win32-x64/THIRD_PARTY_NOTICES.md` and the packaged license files for
-details. Semgrep Registry rules are covered by their own rules license.
-
-## 简体中文
-
-`@aaub-software/dsh-semgrep-sast` 是一个面向
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Cordis 组合包，
-向模型注册 `semgrep_scan` 工具。它只扫描当前工作区内的文件或目录，并返回有大小
-限制的结构化结果，供 Agent 结合源码上下文继续复核。
-
-当前默认托管运行时支持 **Windows x64**，内置 CPython 3.14.7 和 Semgrep 1.163.0，
-用户不需要另外安装 Python 或 Semgrep。
-
-此版本固定托管运行时版本，以避开 Windows Junction 循环遍历回归。
-详见[兼容方案与回归测试](docs/windows-runtime-compatibility.md)。
-
-### 安装
-
-DeepSeek Harness 需要 Node.js 24 或更高版本。将已经构建好的 npm 组合包安装到实际
-使用的 profile，例如 `web`：
-
-```powershell
-dsh plugin --profile web add @aaub-software/dsh-semgrep-sast
-```
-
-安装后重启该 profile，模型即可看到 `semgrep_scan` 工具。在兼容平台上，npm 会同时
-安装 `@aaub-software/semgrep-runtime-win32-x64` 托管运行时。
-
-### 工具行为
-
-`semgrep_scan` 接受以下参数：
-
-| 参数 | 是否必需 | 说明 |
-| --- | --- | --- |
-| `paths` | 否 | 工作区相对文件或目录；默认扫描工作区根目录。 |
-| `ruleset` | 否 | 规则配置；当前版本只支持 `p/default`。 |
-| `sandbox_permissions` | 仅批准重试时 | 可选值为 `workspace-write` 或 `danger-full-access`。 |
-| `justification` | 与权限参数一起使用 | 展示给用户的一句话权限申请理由。 |
-
-插件会拒绝绝对路径、逃逸工作区的路径，以及最终解析到工作区外的符号链接。它不提供
-autofix，并关闭 Semgrep 指标上报。
-
-0.2 版本返回 `@aaub-software/dsh-sast-contract` 定义的公开 `ssc-sast/v1` 协议。
-结果包含扫描器溯源信息、实际扫描路径、规范化发现、诊断信息、耗时、发现总数、返回
-数量以及明确的截断标志。默认最多向模型返回 200 条发现。`partial` 表示 Semgrep 报告了
-影响覆盖范围的诊断，并不表示返回的每一项都已经被确认是漏洞。
-
-### 规范化结果协议
-
-Agent 接收规范化 JSON，而不是 Semgrep 原始输出：
-
-```json
-{
-  "schemaVersion": "ssc-sast/v1",
-  "status": "completed",
-  "scanner": {
-    "name": "semgrep",
-    "version": "1.163.0",
-    "configuration": "p/default"
-  },
-  "scannedPaths": ["src/server.js"],
-  "findings": [
-    {
-      "id": "semgrep:f2b91e32bb169fc1",
-      "scanner": "semgrep",
-      "rule": {
-        "id": "javascript.lang.security.audit.detect-eval-with-expression",
-        "severity": "error",
-        "cwe": ["CWE-95"],
-        "owasp": ["A03:2021"]
-      },
-      "message": "Detected eval with a non-literal expression.",
-      "location": {
-        "path": "src/server.js",
-        "startLine": 2,
-        "startColumn": 18,
-        "endLine": 2,
-        "endColumn": 44
-      },
-      "fingerprint": "f2b91e32bb169fc1",
-      "evidence": [
-        {
-          "type": "semgrep.matched-code",
-          "data": { "text": "eval(req.query.expression)" }
-        },
-        {
-          "type": "semgrep.metavariables",
-          "data": { "$EXPR": "req.query.expression" }
-        }
-      ]
-    }
-  ],
-  "diagnostics": [],
-  "summary": {
-    "totalFindings": 1,
-    "returnedFindings": 1,
-    "truncated": false,
-    "durationMs": 125
-  }
-}
-```
-
-parser 会先验证 Semgrep 原始 JSON，再由适配器构造公共协议。可选 metadata 和 evidence
-均限制长度与数量。只有 Semgrep 实际输出的 CWE、OWASP、references 和 fingerprint 才会
-被保留，适配器不会猜测缺失信息。diagnostics 与 findings 分开，避免把扫描覆盖不完整
-错误解释为“没有漏洞”。
-
-### Windows 权限批准流程
-
-Semgrep Core 在当前 DeepSeek Harness Windows ACL 沙箱内无法打开系统证书库。为了让
-扩大权限始终经过明确批准，第一次受限调用不会启动 Semgrep，而是返回 Harness 标准的
-沙箱拒绝标记，并提示模型使用完全相同的扫描参数，加上以下字段重试：
-
-```json
-{
-  "sandbox_permissions": "danger-full-access",
-  "justification": "运行用户要求的 Semgrep 扫描，因为 Semgrep Core 无法在 Harness Windows ACL 沙箱内访问系统证书库。"
-}
-```
-
-随后由 Harness 向用户请求批准，只有批准后才会运行扫描。插件不会静默扩大权限，也不
-会把这次批准当作工具自身的永久权限。
-
-### 安全与资源控制
-
-- 扫描目标必须位于当前工作区。
-- 扫描只读，不提供 autofix。
-- 通过 `--metrics=off` 和 `SEMGREP_SEND_METRICS=off` 关闭指标上报。
-- 缓存、配置、设置、版本缓存和日志位置被重定向到本次扫描的临时环境。
-- 使用 Harness 进程服务实现取消、默认五分钟超时、两秒终止宽限期和进程树终止。
-- stdout 最大 32 MiB，stderr 最大 1 MiB；JSON 输出超限时直接失败，不返回残缺 JSON。
-- 发现按确定顺序排列并限制数量；结果截断与扫描覆盖不完整分别报告。
-
-默认 `p/default` 规则集在扫描时从 Semgrep Registry 获取。因此，当规则尚未存在于临时
-环境中时，扫描需要网络访问。本项目不重新分发 Registry 规则。
-
-### 配置
-
-组合包默认配置为：
-
-```yaml
-- insert:
-    - id: semgrep-sast
-      name: '@aaub-software/dsh-semgrep-sast'
-      config:
-        runtimeMode: bundled
-        defaultRuleset: p/default
-        timeoutMs: 300000
-        maxFindings: 200
-```
-
-高级部署可以选择 `runtimeMode: system`，但必须同时提供明确的 `executable`。Windows
-x64 用户的免安装支持路径是默认托管运行时。
-
-### 开发
-
-```powershell
-pnpm install
-pnpm typecheck
-pnpm build
-pnpm test
-```
-
-仓库使用 pnpm workspace。DSH 组合包位于 `packages/bundle`，托管运行时包位于
-`packages/runtimes/win32-x64`。
-开发环境链接本地运行时包。执行真实扫描或打包运行时之前，需要组装未纳入 Git 的
-二进制文件，并运行[离线回归测试](docs/windows-runtime-compatibility.md#reproducing-validation)。
-
-### 许可证
-
-组合包代码使用 MIT 许可证。托管运行时是聚合二进制发行包，其中各组件继续适用各自的
-上游许可证。详细信息见 `packages/runtimes/win32-x64/THIRD_PARTY_NOTICES.md` 及包内许可证
-文件；Semgrep Registry 规则另行适用其规则许可证。
+A minimal Claude Code Mod port of DSH Semgrep SAST 0.3.0. It registers
+`mcp__dsh-semgrep-sast-cc__semgrep_scan` using `$.tool.register` and handles calls
+through `$.process.run`. The standalone Node runner retains `ssc-sast/v1`, CWE
+prioritization, finding diversification, bounded source context, and offline audit
+rules. Requires Node 24+ and Claude Code CLI 2.1.287+.
+
+Install the existing Windows runtime 0.1.1 tarball in this directory with
+`npm install --no-save --package-lock=false --ignore-scripts <tarball>`, or set
+`DSH_SEMGREP_EXECUTABLE` to a system Semgrep executable. That runtime version is
+not on npm as of 2026-10-07. Linux/macOS use `semgrep` from PATH by default.
+Start Claude in the target project with `claude --plugin-dir <absolute-plugin-path>`.
+The runtime is installed separately; marketplace installation does not install it.
+
+This port uses Claude Mod host permissions. Harness-specific approval parameters
+are removed. Run `npm test`, `claude plugin test .`, and
+`claude plugin validate --strict .` for verification. The original project remains
+the upstream source of the three reused core modules and the rules (MIT).

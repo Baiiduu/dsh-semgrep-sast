@@ -1,0 +1,10 @@
+{
+  "name": "dsh-semgrep-sast-cc",
+  "version": "0.1.0",
+  "description": "Read-only Semgrep scans with CWE prioritization and bounded ssc-sast/v1 findings.",
+  "author": { "name": "AAUB Software" },
+  "repository": "https://github.com/LunTr/dsh-semgrep-sast-cc",
+  "homepage": "https://github.com/LunTr/dsh-semgrep-sast-cc/tree/claude-code-mod#readme",
+  "license": "MIT",
+  "keywords": ["semgrep", "sast", "security", "mod"]
+}

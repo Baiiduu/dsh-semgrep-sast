@@ -1,0 +1,95 @@
+{
+  "rules": [
+    {
+      "id": "cwe-audit.go.path-operation",
+      "languages": ["go"], "severity": "INFO",
+      "message": "Path audit candidate: trace the path argument to its input and check canonical directory containment before this operation. A match alone does not establish a vulnerability.",
+      "metadata": {"cwe": ["CWE-22", "CWE-36"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "os.Open(...)"}, {"pattern": "os.OpenFile(...)"}, {"pattern": "os.Create(...)"}, {"pattern": "os.ReadFile(...)"}, {"pattern": "os.WriteFile(...)"}, {"pattern": "ioutil.ReadFile(...)"}, {"pattern": "ioutil.WriteFile(...)"}, {"pattern": "http.ServeFile(...)"}]
+    },
+    {
+      "id": "cwe-audit.js.path-operation",
+      "languages": ["javascript", "typescript"], "severity": "INFO",
+      "message": "Path audit candidate: verify input reachability, canonical containment, absolute path handling and feature defaults at this operation. A match alone does not establish a vulnerability.",
+      "metadata": {"cwe": ["CWE-22", "CWE-36"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "$FS.readFile(...)"}, {"pattern": "$FS.readFileSync(...)"}, {"pattern": "$FS.writeFile(...)"}, {"pattern": "$FS.createReadStream(...)"}, {"pattern": "$FS.createWriteStream(...)"}, {"pattern": "$RES.sendFile(...)"}, {"pattern": "$RES.download(...)"}]
+    },
+    {
+      "id": "cwe-audit.python.path-operation",
+      "languages": ["python"], "severity": "INFO",
+      "message": "Path audit candidate: inspect the input-to-path route and effective directory boundary, including archive members. A match alone does not establish a vulnerability.",
+      "metadata": {"cwe": ["CWE-22", "CWE-36"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "open(...)"}, {"pattern": "$P.read_text(...)"}, {"pattern": "$P.read_bytes(...)"}, {"pattern": "$P.write_text(...)"}, {"pattern": "$A.extract(...)"}, {"pattern": "$A.extractall(...)"}]
+    },
+    {
+      "id": "cwe-audit.java.path-operation",
+      "languages": ["java"], "severity": "INFO",
+      "message": "Path audit candidate: check canonical containment and untrusted path reachability before file access. A match alone does not establish a vulnerability.",
+      "metadata": {"cwe": ["CWE-22", "CWE-36"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "new FileInputStream(...)"}, {"pattern": "new FileOutputStream(...)"}, {"pattern": "Files.readAllBytes(...)"}, {"pattern": "Files.newInputStream(...)"}, {"pattern": "Files.copy(...)"}]
+    },
+    {
+      "id": "cwe-audit.go.resource-operation",
+      "languages": ["go"], "severity": "INFO",
+      "message": "Resource audit candidate: check whether an attacker can grow allocation, retained state or read size and whether the effective budget bounds actual work. Inspect callers and defaults; a match is navigation only.",
+      "metadata": {"cwe": ["CWE-400", "CWE-770"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "io.ReadAll(...)"}, {"pattern": "ioutil.ReadAll(...)"}, {"pattern": "make([]$T, $SIZE, ...)"}, {"pattern": "append(...)"}, {"pattern": "go $F(...)"}]
+    },
+    {
+      "id": "cwe-audit.js.resource-operation",
+      "languages": ["javascript", "typescript"], "severity": "INFO",
+      "message": "Resource audit candidate: trace attacker-controlled size, repetitions, buffering or regex input. Verify cost, cap, throttling and cleanup together; a match is navigation only.",
+      "metadata": {"cwe": ["CWE-400", "CWE-770"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "Buffer.alloc(...)"}, {"pattern": "Buffer.allocUnsafe(...)"}, {"pattern": "$S.repeat(...)"}, {"pattern": "new RegExp(...)"}, {"pattern": "$A.push(...)"}, {"pattern": "$A.concat(...)"}]
+    },
+    {
+      "id": "cwe-audit.python.resource-operation",
+      "languages": ["python"], "severity": "INFO",
+      "message": "Resource audit candidate: verify effective input and work bounds for iteration, decompression or regex processing. Check callers and cleanup; a match is navigation only.",
+      "metadata": {"cwe": ["CWE-400", "CWE-770"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "range(...)"}, {"pattern": "re.compile(...)"}, {"pattern": "re.search(...)"}, {"pattern": "re.match(...)"}, {"pattern": "zlib.decompress(...)"}, {"pattern": "$B.read()"}]
+    },
+    {
+      "id": "cwe-audit.java.resource-operation",
+      "languages": ["java"], "severity": "INFO",
+      "message": "Resource audit candidate: check attacker control of allocation, buffering and regex cost, plus the effective cap and cleanup. A match is navigation only.",
+      "metadata": {"cwe": ["CWE-400", "CWE-770"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "new byte[$SIZE]"}, {"pattern": "Pattern.compile(...)"}, {"pattern": "$S.readAllBytes()"}, {"pattern": "$B.append(...)"}]
+    },
+    {
+      "id": "cwe-audit.rust.resource-operation",
+      "languages": ["rust"], "severity": "INFO",
+      "message": "Resource audit candidate: trace requested capacity, iteration count or retained input to an effective cost bound and cleanup. A match is navigation only.",
+      "metadata": {"cwe": ["CWE-400", "CWE-770"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "Vec::with_capacity(...)"}, {"pattern": "$V.resize(...)"}, {"pattern": "$V.push(...)"}, {"pattern": "$S.repeat(...)"}, {"pattern": "$R.read_to_end(...)"}, {"pattern": "$R.read_to_string(...)"}]
+    },
+    {
+      "id": "cwe-audit.rust.path-operation",
+      "languages": ["rust"], "severity": "INFO",
+      "message": "Path audit candidate: trace untrusted path input and verify canonical containment before file access. A match is navigation only.",
+      "metadata": {"cwe": ["CWE-22", "CWE-36"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "std::fs::read(...)"}, {"pattern": "std::fs::write(...)"}, {"pattern": "File::open(...)"}, {"pattern": "File::create(...)"}]
+    },
+    {
+      "id": "cwe-audit.js.input-operation",
+      "languages": ["javascript", "typescript"], "severity": "INFO",
+      "message": "Input audit candidate: identify the exact required property, including finite numeric values, ranges and schema, and verify validation precedes every security-sensitive use. A match is navigation only.",
+      "metadata": {"cwe": ["CWE-20"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "parseInt(...)"}, {"pattern": "parseFloat(...)"}, {"pattern": "Number(...)"}, {"pattern": "JSON.parse(...)"}]
+    },
+    {
+      "id": "cwe-audit.go.input-operation",
+      "languages": ["go"], "severity": "INFO",
+      "message": "Input audit candidate: check decoded fields, numeric ranges, errors and validation order before sensitive use. A match is navigation only.",
+      "metadata": {"cwe": ["CWE-20"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "strconv.Atoi(...)"}, {"pattern": "strconv.ParseInt(...)"}, {"pattern": "json.Unmarshal(...)"}, {"pattern": "$D.Decode(...)"}]
+    },
+    {
+      "id": "cwe-audit.python.input-operation",
+      "languages": ["python"], "severity": "INFO",
+      "message": "Input audit candidate: verify decoded types, ranges and validation timing before sensitive use. A match is navigation only.",
+      "metadata": {"cwe": ["CWE-20"], "category": "security", "confidence": "LOW"},
+      "pattern-either": [{"pattern": "int(...)"}, {"pattern": "float(...)"}, {"pattern": "json.loads(...)"}]
+    }
+  ]
+}
